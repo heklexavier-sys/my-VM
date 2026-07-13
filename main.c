@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+//when it will collect garbage. IDK how high/low to set this
+#define INITIAL_GC_LIMIT 1024
 
 
 typedef enum
@@ -64,10 +66,80 @@ typedef struct
 
     Value *objects;
 
+    // Garbage collector information
+    //important note: GC is not group chat, it is garbage collector. We use too many acronyms.
+    size_t allocatedBytes;
+    size_t nextGC;
+
 } VMallMemory;
 //VERY IMPORTANT
+
+
+//GARBAGE COLLECTION GARBAGE COLLECTION GARBAGE COLLECTION GARBAGE COLLECTION GARBAGE COLLECTION GARBAGE COLLECTION
+//MARKING OBJECTS
+void markValue(Value *value)
+{
+    if(value == NULL)
+        return;
+
+    value->marked = true;
+}
+//MARKING THE REGISTERS
+void markRegs(VMallMemory *vm)
+{
+    for(int i = 0; i <= (size_t)(RegIndex)~(RegIndex)0; i++)
+    {
+        markValue(vm->registers[i]);
+    }
+}
+
+//taking out the trash
+void sweep(VMallMemory *vm)
+{
+    Value **current = &vm->objects;
+
+
+    while(*current)
+    {
+        Value *value = *current;
+
+
+        if(value->marked == false)
+        {
+            *current = value->next;
+            free(value);
+            vm->allocatedBytes -= sizeof(Value);//gotta remember this.
+        }
+        else
+        {
+            value->marked = false;
+            current = &value->next;
+        }
+    }
+}
+//all together now
+void collectGarbage(VMallMemory *vm)
+{
+    markRegs(vm);
+
+    sweep(vm);
+}
+//I think thats it for garbage collection - i need to add handling for strings later...
+
+
+
+//for when I make a value
 Value *allocateValue(VMallMemory *vm)
 {
+
+    if(vm->allocatedBytes > vm->nextGC)//call this first so there no temporary excess
+    {
+        collectGarbage(vm);
+
+        vm->nextGC = vm->allocatedBytes * 2;
+    }
+
+
     Value *value = malloc(sizeof(Value));
 
     if(value == NULL)
@@ -75,6 +147,10 @@ Value *allocateValue(VMallMemory *vm)
         printf("Out of memory\n");
         exit(1);
     }
+
+    vm->allocatedBytes += sizeof(Value);
+
+
 
 
     value->type = OBJ_NULL;
@@ -89,6 +165,8 @@ Value *allocateValue(VMallMemory *vm)
 }
 
 
+
+//Now THIS is where stuff happens. Mostly done initializing
 typedef enum {
     OP_LOAD,
     OP_MOVE,
@@ -105,7 +183,7 @@ typedef struct {
     RegIndex b;
     RegIndex c;
 }Intstructions;
-
+//I should get rid of the third RegIndex requirement, but its fun to have some goofyness
 void loadFunc(VMallMemory *vm, RegIndex dest, RegIndex startIndex, RegIndex uselesspeiceofJUNK) {
     //so the registers store the LOCATION of the variable, because it is more efficient
     vm->registers[dest] = &constants[startIndex];
@@ -170,7 +248,7 @@ void basicMathFuncDouble(VMallMemory *vm, RegIndex dest, RegIndex firstNumIndex,
             case MATH_DIV:
                 if (holderForSecondNum == 0.0)
                 {
-                    printf("Beep Boop. You failed. Do math better (you divided by zero)\n");
+                    printf("Beep Boop. You failed. Do math better (you divided by zero)\n");//heh. more goofyness. I was tired
                     result = 0;
                 } else {
                     result = holderForFirstNum / holderForSecondNum;
@@ -256,7 +334,7 @@ void doVmStuff(VMallMemory *vm, OperationCode opcode, RegIndex a, RegIndex b, Re
             Value *left = vm->registers[b];
             Value *right = vm->registers[c];
             if (left->type == OBJ_DOUBLE ||
-                right->type == OBJ_DOUBLE)
+                right->type == OBJ_DOUBLE)//check everything...
             {
                 basicMathFuncDouble(vm,a, b, c, MATH_ADD);
             }
@@ -307,6 +385,8 @@ void doVmStuff(VMallMemory *vm, OperationCode opcode, RegIndex a, RegIndex b, Re
 
 int main() {
     VMallMemory vm = {0};
+
+    vm.nextGC = INITIAL_GC_LIMIT;//otherwise there would be immediate garbage collection
 
     doVmStuff(&vm, OP_LOAD, 0, 0, 0);
 }
