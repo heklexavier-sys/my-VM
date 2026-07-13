@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 
 
@@ -18,9 +19,13 @@ typedef enum
     OBJ_NULL
 } ValueType;
 
-typedef struct
+typedef struct Value
 {
     ValueType type;
+
+    bool marked;
+
+    struct Value *next;
 
     union
     {
@@ -29,6 +34,7 @@ typedef struct
         const char *stringValue;
         bool boolValue;
     };
+
 } Value;
 
 
@@ -46,13 +52,41 @@ Value constants[] =
 //DUMMY CONSTANT TABLE END
 
 
-//MY REGISTERS
-Value *registers[256];
-//VERY IMPORTANT
-
 //for determining which register - small int is better
 typedef uint8_t RegIndex;
 
+//MY REGISTERS
+//makes the size of the registers equal to the size of RegIndex
+//
+typedef struct
+{
+    Value *registers[(size_t)(RegIndex)~(RegIndex)0 + 1];
+
+    Value *objects;
+
+} VMallMemory;
+//VERY IMPORTANT
+Value *allocateValue(VMallMemory *vm)
+{
+    Value *value = malloc(sizeof(Value));
+
+    if(value == NULL)
+    {
+        printf("Out of memory\n");
+        exit(1);
+    }
+
+
+    value->type = OBJ_NULL;
+    value->marked = false;
+
+
+    value->next = vm->objects;
+    vm->objects = value;
+
+
+    return value;
+}
 
 
 typedef enum {
@@ -67,14 +101,14 @@ typedef enum {
 
 typedef struct {
     OperationCode opcode;
-    int a;
-    int b;
-    int c;
+    RegIndex a;
+    RegIndex b;
+    RegIndex c;
 }Intstructions;
 
-void loadFunc(int dest, int startIndex, int uselesspeiceofJUNK) {
+void loadFunc(VMallMemory *vm, RegIndex dest, RegIndex startIndex, RegIndex uselesspeiceofJUNK) {
     //so the registers store the LOCATION of the variable, because it is more efficient
-    registers[dest] = &constants[startIndex];
+    vm->registers[dest] = &constants[startIndex];
 }
 
 typedef enum {
@@ -84,12 +118,14 @@ typedef enum {
     MATH_DIV,
 } MathType;
 
-void basicMathFunc(RegIndex dest, RegIndex firstNumIndex, RegIndex secondNumIndex, MathType mathType) {
-    
-    
 
-    Value *firstNum = registers[firstNumIndex];
-    Value *secondNum = registers[secondNumIndex];
+
+void basicMathFuncDouble(VMallMemory *vm, RegIndex dest, RegIndex firstNumIndex, RegIndex secondNumIndex, MathType mathType) {
+
+
+
+    Value *firstNum = vm->registers[firstNumIndex];
+    Value *secondNum =  vm->registers[secondNumIndex];
 
 
     if ((firstNum->type != OBJ_INT &&
@@ -100,11 +136,9 @@ void basicMathFunc(RegIndex dest, RegIndex firstNumIndex, RegIndex secondNumInde
         printf("Type error\n");
         return;
     }
-    
-    Value *newValue = malloc(sizeof(Value));
 
-    if (firstNum->type == OBJ_DOUBLE || secondNum->type == OBJ_DOUBLE)
-    {
+    Value *newValue = allocateValue(vm);
+
         double holderForFirstNum;
         double holderForSecondNum;
 
@@ -134,7 +168,7 @@ void basicMathFunc(RegIndex dest, RegIndex firstNumIndex, RegIndex secondNumInde
                 break;
 
             case MATH_DIV:
-                if (secondNum->intValue == 0)
+                if (holderForSecondNum == 0.0)
                 {
                     printf("Beep Boop. You failed. Do math better (you divided by zero)\n");
                     result = 0;
@@ -151,69 +185,120 @@ void basicMathFunc(RegIndex dest, RegIndex firstNumIndex, RegIndex secondNumInde
 
         newValue->type = OBJ_DOUBLE;
         newValue->doubleValue = result;
-    }
-    else
+
+
+     vm->registers[dest] = newValue;
+}
+
+
+
+
+void basicMathFuncInt(VMallMemory *vm, RegIndex dest, RegIndex firstNumIndex, RegIndex secondNumIndex, MathType mathType) {
+
+
+
+    Value *firstNum = vm->registers[firstNumIndex];
+    Value *secondNum = vm->registers[secondNumIndex];
+
+
+    if ((firstNum->type != OBJ_INT) || (secondNum->type != OBJ_INT))
     {
-        int32_t result;
-        switch(mathType)
-        {
-            case MATH_ADD:
-                result = firstNum->intValue + secondNum->intValue;
-                break;
+        printf("Type error, expecting INT\n");
+        return;
+    }
 
-            case MATH_SUB:
-                result = firstNum->intValue - secondNum->intValue;
-                break;
+    Value *newValue = allocateValue(vm);
 
-            case MATH_MUL:
-                result = firstNum->intValue * secondNum->intValue;
-                break;
+    int32_t result;
+    switch(mathType) {
+        case MATH_ADD:
+            result = firstNum->intValue + secondNum->intValue;
+            break;
 
-            case MATH_DIV:
-                if (secondNum->intValue == 0)
-                {
-                    printf("Beep Boop. You failed. Do math better (you divided by zero)\n");
-                    result = 0;
-                } else {
-                    result = firstNum->intValue / secondNum->intValue;
-                }
-                break;
+        case MATH_SUB:
+            result = firstNum->intValue - secondNum->intValue;
+            break;
 
-            default:
-                result = 0;
+        case MATH_MUL:
+            result = firstNum->intValue * secondNum->intValue;
+            break;
 
-        }
+
+        default:
+            result = 0;
+    }
 
         newValue->type = OBJ_INT;
         newValue->intValue = result;
-    }
 
-    registers[dest] = newValue;
+
+    vm->registers[dest] = newValue;
 }
 
+
+
+
+
 //remember to declare helper functions before they are used
-void doVmStuff(OperationCode opcode, RegIndex a, RegIndex b, RegIndex c)
+void doVmStuff(VMallMemory *vm, OperationCode opcode, RegIndex a, RegIndex b, RegIndex c)
 {
+
+
+
     switch(opcode)
     {
         case OP_LOAD:
-            loadFunc(a,b,c);
+            loadFunc(vm, a,b,c);
             break;
 
-        case OP_ADD:
-            basicMathFunc(a, b, c, MATH_ADD);
+            //math functions
+        case OP_ADD: {
+            Value *left = vm->registers[b];
+            Value *right = vm->registers[c];
+            if (left->type == OBJ_DOUBLE ||
+                right->type == OBJ_DOUBLE)
+            {
+                basicMathFuncDouble(vm,a, b, c, MATH_ADD);
+            }
+            else
+            {
+                basicMathFuncInt(vm,a, b, c, MATH_ADD);
+            }
             break;
+        }
 
-        case OP_SUB:
-            basicMathFunc(a, b, c, MATH_SUB);
+        case OP_SUB: {
+            Value *left = vm->registers[b];
+            Value *right = vm->registers[c];
+            if (left->type == OBJ_DOUBLE ||
+                right->type == OBJ_DOUBLE)
+            {
+                basicMathFuncDouble(vm,a, b, c, MATH_SUB);
+            }
+            else
+            {
+                basicMathFuncInt(vm,a, b, c, MATH_SUB);
+            }
             break;
+        }
 
-        case OP_MUL:
-            basicMathFunc(a, b, c, MATH_MUL);
+        case OP_MUL: {
+            Value *left = vm->registers[b];
+            Value *right = vm->registers[c];
+            if (left->type == OBJ_DOUBLE ||
+                right->type == OBJ_DOUBLE)
+            {
+                basicMathFuncDouble(vm,a, b, c, MATH_MUL);
+            }
+            else
+            {
+                basicMathFuncInt(vm,a, b, c, MATH_MUL);
+            }
             break;
+        }
 
         case OP_DIV:
-            basicMathFunc(a, b, c, MATH_DIV);
+            basicMathFuncDouble(vm,a, b, c, MATH_DIV);
             break;
     }
 }
@@ -221,5 +306,7 @@ void doVmStuff(OperationCode opcode, RegIndex a, RegIndex b, RegIndex c)
 
 
 int main() {
-    doVmStuff(OP_LOAD, 0, 0, 0);
+    VMallMemory vm = {0};
+
+    doVmStuff(&vm, OP_LOAD, 0, 0, 0);
 }
