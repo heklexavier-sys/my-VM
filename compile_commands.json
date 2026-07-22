@@ -1,0 +1,30 @@
+[
+  {
+    "file": "vm.c",
+    "arguments": [
+      "/usr/bin/gcc",
+      "-O2",
+      "-c",
+      "vm.c",
+      "-o",
+      "vm.o",
+      "-I/home/main/engine/construct/backend/VM/C-lib/include"
+    ],
+    "directory": "/home/main/engine/construct/backend/VM",
+    "output": "vm.o"
+  },
+  {
+    "file": "main.c",
+    "arguments": [
+      "/usr/bin/gcc",
+      "-O2",
+      "-c",
+      "main.c",
+      "-o",
+      "main.o",
+      "-I/home/main/engine/construct/backend/VM/C-lib/include"
+    ],
+    "directory": "/home/main/engine/construct/backend/VM",
+    "output": "main.o"
+  }
+]

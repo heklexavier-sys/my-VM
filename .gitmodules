@@ -1,0 +1,3 @@
+[submodule "C-lib"]
+	path = C-lib
+	url = git@github.com:darakof/C-lib.git
