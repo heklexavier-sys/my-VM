@@ -88,7 +88,8 @@ typedef struct {
 struct Value {
 	ValueType type;
 
-	union {
+	// union needs to be named so we can easily move it without needing the type
+	union Data {
 		int64_t intVal;
 		long double doubleVal;
 		const str stringVal;
@@ -98,7 +99,7 @@ struct Value {
 		Value* pointerVal;
 		RegIndex regrefVal;
 		void *native_ptr; // not a part of Val technically because its just an edge case really
-	};
+	} data;
 };
 
 typedef struct {
@@ -118,9 +119,12 @@ typedef struct {
 typedef struct {
 	BytecodeSize *bytecode;
 	arr functions;
-	FunctionFrame* callstack;
+	arr callstack;
 	FunctionFrame* currentFrame;
 	Value* constants;
 } VM;
+
+VM* VM_create(BytecodeSize bytecode, arr functions, Value* constants);
+void VM_destroy(VM* vm);
 
 #endif
