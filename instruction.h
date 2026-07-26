@@ -2,6 +2,7 @@
 #define VM_INSTRUCTION_H
 
 #include <math.h>
+#include <string.h>
 #include "vm.h"
 
 inline BytecodeSize VMgetNextVal(VM* vm) {
@@ -177,8 +178,12 @@ inline void VMeq(VM* vm) {
 
     dst->type = VAL_BOOL;
 
+    if (src1.type == VAL_DOUBLE || src2.type == VAL_DOUBLE) {
+        dst->data.boolVal = makeDouble(src1) == makeDouble(src2);
+        return;
+    }
+
     if (src1.type != src2.type) {
-        //should i even bother with a catch for this?
         dst->data.boolVal = false;
         return;
     }
@@ -189,22 +194,21 @@ inline void VMeq(VM* vm) {
                 src1.data.intVal == src2.data.intVal;
             break;
 
-        case VAL_DOUBLE:
-            dst->data.boolVal =
-                src1.data.doubleVal == src2.data.doubleVal;
-            break;
-
         case VAL_BOOL:
             dst->data.boolVal =
                 src1.data.boolVal == src2.data.boolVal;
             break;
 
         case VAL_STRING:
-            dst->data.stringVal =
-                src1.data.stringVal == src2.data.stringVal;
+            dst->data.boolVal =
+                strcmp(src1.data.stringVal, src2.data.stringVal) == 0;
             break;
 
-            //should i do one for objects too?
+        case VAL_OBJECT:
+            dst->data.boolVal =
+                src1.data.objectVal == src2.data.objectVal;
+            break;
+
         default:
             dst->data.boolVal = false;
             break;
@@ -218,9 +222,13 @@ inline void VMne(VM* vm) {
 
     dst->type = VAL_BOOL;
 
+    if (src1.type == VAL_DOUBLE || src2.type == VAL_DOUBLE) {
+        dst->data.boolVal = makeDouble(src1) != makeDouble(src2);
+        return;
+    }
+
     if (src1.type != src2.type) {
-        //should i even bother with a catch for this?
-        dst->data.boolVal = false;
+        dst->data.boolVal = true;
         return;
     }
 
@@ -230,23 +238,23 @@ inline void VMne(VM* vm) {
                 src1.data.intVal != src2.data.intVal;
             break;
 
-        case VAL_DOUBLE:
-            dst->data.boolVal =
-                src1.data.doubleVal != src2.data.doubleVal;
-            break;
-
         case VAL_BOOL:
             dst->data.boolVal =
                 src1.data.boolVal != src2.data.boolVal;
             break;
 
         case VAL_STRING:
-            dst->data.stringVal =
-                src1.data.stringVal != src2.data.stringVal;
+            dst->data.boolVal =
+                strcmp(src1.data.stringVal, src2.data.stringVal) != 0;
+            break;
+
+        case VAL_OBJECT:
+            dst->data.boolVal =
+                src1.data.objectVal != src2.data.objectVal;
             break;
 
         default:
-            dst->data.boolVal = false;
+            dst->data.boolVal = true;
             break;
     }
 }
@@ -318,8 +326,5 @@ inline void VMge(VM* vm) {
         dst->data.boolVal = (src1.data.intVal >= src2.data.intVal);
     }
 }
-
-
-
 
 #endif
