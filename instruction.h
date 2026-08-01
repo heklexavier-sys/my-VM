@@ -3,6 +3,7 @@
 
 #include <math.h>
 #include <string.h>
+#include <stdbool.h>
 #include "vm.h"
 
 inline BytecodeSize VMgetNextVal(VM* vm) {
@@ -29,6 +30,54 @@ inline void VMloadconst(VM* vm) {
     dst->type = src.type;
     dst->data = src.data;
 }
+
+inline void VMload(VM* vm) {
+    Value* dst = VMgetNextReg(vm);
+    Value src1 = *VMgetNextReg(vm);
+
+    Value src2 = *src1.data.pointerVal;
+
+    dst->type = src2.type;
+    dst->data = src2.data;
+}
+
+//shoulda started with these cuz they're so easy
+inline void VMmove(VM* vm) {
+    Value* dst = VMgetNextReg(vm);
+    Value src = *VMgetNextReg(vm);
+
+    dst->type = src.type;
+    dst->data = src.data;
+}
+
+inline void VMptr(VM* vm) {
+    Value* dst = VMgetNextReg(vm);
+    Value* src = VMgetNextReg(vm);
+
+    dst->type = VAL_POINTER;
+    dst->data.pointerVal = src;
+}
+
+inline void VMstore(VM* vm) {
+    Value* dst = VMgetNextReg(vm);   // 1. Get the register holding the pointer
+    Value src = *VMgetNextReg(vm);   // 2. Get the register holding the data we want to store
+
+    // 3 & 4. Overwrite the Value struct located at the pointer destination
+    // with the contents of src.
+    *dst->data.pointerVal = src;
+}
+
+inline void VMregRef(VM* vm) {
+    Value* dst = VMgetNextReg(vm);
+
+    BytecodeSize regIndex = VMgetNextVal(vm);
+
+    dst->type = VAL_REGREF;
+    dst->data.regrefVal = regIndex;
+}
+
+
+
 
 inline void VMadd(VM* vm) {
     Value* dst = VMgetNextReg(vm);
@@ -324,6 +373,30 @@ inline void VMge(VM* vm) {
     } else {
 
         dst->data.boolVal = (src1.data.intVal >= src2.data.intVal);
+    }
+}
+
+//changing pc allows the code so skip forward, like if an if statement fails
+inline void VMjump(VM* vm) {
+    Value src = *VMgetNextReg(vm);
+    vm->currentFrame->pc += src.data.intVal;
+}
+
+inline void VMjumpIfTrue(VM* vm) {
+    Value src = *VMgetNextReg(vm);
+    Value decider = *VMgetNextReg(vm);
+
+    if (decider.data.boolVal) {
+        vm->currentFrame->pc += src.data.intVal;
+    }
+}
+
+inline void VMjumpIfFalse(VM* vm) {
+    Value src = *VMgetNextReg(vm);
+    Value decider = *VMgetNextReg(vm);
+
+    if (!decider.data.boolVal) {
+        vm->currentFrame->pc += src.data.intVal;
     }
 }
 
